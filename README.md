@@ -81,6 +81,10 @@ A ChatGPT-style UI for interacting with the automated shopping assistant.
 
 - `NEXT_PUBLIC_API_URL` - Backend API URL (default: http://localhost:8000)
 
+## Description
+
+This is the frontend application for the Universal Shopper project. It provides a user interface to interact with the [Universal Shopper Backend API](https://github.com/rajatdhoot123/UniversalShopper) for automating purchases on supported e-commerce websites.
+
 ## License
 
 MIT
