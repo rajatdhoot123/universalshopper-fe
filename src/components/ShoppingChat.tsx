@@ -42,7 +42,6 @@ export default function ShoppingChat() {
   // State for required input during an active process
   const [requiredInputType, setRequiredInputType] = useState<RequiredInputType>(null);
   const [requiredInputData, setRequiredInputData] = useState<ActionData | null>(null);
-  const [newSessionName, setNewSessionName] = useState('');
 
   // Use useRef for interval ID and poll count
   const [intervalIdRef, pollCountRef, messagesEndRef, inputRef] = [
@@ -336,7 +335,7 @@ export default function ShoppingChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle session selection
+  // Handle select session
   const handleSelectSession = (session: string) => {
     setMessages(prev => [...prev, { role: 'assistant', content: `Using session '${session}'. Please paste the product URL.` }]);
     setCurrentSession({ name: session, isExisting: true });
@@ -347,18 +346,6 @@ export default function ShoppingChat() {
   const handleCreateNewClick = () => {
     setRequiredInputType('create_session');
     setMessages(prev => [...prev, { role: 'assistant', content: "Please enter a name for your new session:" }]);
-  };
-
-  // Handle create session submission
-  const handleCreateSession = () => {
-    if (newSessionName.trim()) {
-      setMessages(prev => [...prev, { role: 'user', content: newSessionName.trim() }]);
-      setMessages(prev => [...prev, { role: 'assistant', content: `Creating new session '${newSessionName.trim()}'. Please paste the product URL.` }]);
-      setCurrentSession({ name: newSessionName.trim(), isExisting: false });
-      setSessionState('url_required');
-      setRequiredInputType(null);
-      setNewSessionName('');
-    }
   };
 
   // --- handleSendMessage ---
@@ -443,8 +430,16 @@ export default function ShoppingChat() {
         }
         // Handle create session input
         else if (requiredInputType === 'create_session') {
-            setNewSessionName(userInput);
-            handleCreateSession();
+            if(userInput.trim()) {
+                setMessages(prev => [...prev, { role: 'assistant', content: `Creating new session '${userInput}'. Please paste the product URL.` }]);
+                setCurrentSession({ name: userInput, isExisting: false });
+                setSessionState('url_required');
+                setRequiredInputType(null);
+                setIsLoading(false);
+            } else {
+                setMessages(prev => [...prev, { role: 'assistant', content: 'Please enter a valid session name.' }]);
+                setIsLoading(false);
+            }
         }
         // --- 2. Handle Session Setup / URL Input (Only if no required input) ---
         else if (sessionState === 'selecting' || sessionState === 'url_required') {
