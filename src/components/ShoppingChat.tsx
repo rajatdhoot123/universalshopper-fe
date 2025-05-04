@@ -1,6 +1,10 @@
 "use client"
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../services/api';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Avatar } from "@/components/ui/avatar";
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -15,7 +19,7 @@ interface ApiAddress {
 }
 
 // Define specific types for required input to improve type safety
-type RequiredInputType = 'login_otp' | 'select_address' | 'payment' | 'bank_otp' | null;
+type RequiredInputType = 'login_otp' | 'select_address' | 'payment' | 'bank_otp' | 'create_session' | null;
 
 interface ActionData {
   addresses?: ApiAddress[]; // Use the new address type
@@ -39,12 +43,14 @@ export default function ShoppingChat() {
   // State for required input during an active process
   const [requiredInputType, setRequiredInputType] = useState<RequiredInputType>(null);
   const [requiredInputData, setRequiredInputData] = useState<ActionData | null>(null);
-
+  const [newSessionName, setNewSessionName] = useState('');
 
   // Use useRef for interval ID and poll count
-  const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
-  const pollCountRef = useRef(0);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // For scrolling
+  const [intervalIdRef, pollCountRef, messagesEndRef] = [
+    useRef<NodeJS.Timeout | null>(null),
+    useRef(0),
+    useRef<HTMLDivElement>(null)  // For scrolling
+  ];
 
   // Function to STOP polling
   const stopPolling = useCallback(() => {
@@ -54,6 +60,14 @@ export default function ShoppingChat() {
       intervalIdRef.current = null;
       pollCountRef.current = 0; // Reset count
     }
+  }, []);
+
+  // Function to display session options as a chat message
+  const displaySessionOptions = useCallback(() => {
+    setMessages(prev => [...prev, { 
+      role: 'assistant', 
+      content: 'Click on existing session'
+    }]);
   }, []);
 
   // Function to RESET component state after process ends/fails/cancels
@@ -70,25 +84,18 @@ export default function ShoppingChat() {
       const sessions = await api.listSessions();
       setAvailableSessions(sessions);
       // Add a message prompting for session selection again
-       let resetMessage = "Process finished or stopped.\n\nSelect/create session.";
-       if (sessions.length > 0) {
-           resetMessage += "\nAvailable sessions:\n";
-           sessions.forEach((session, index) => {
-               resetMessage += `${index + 1}. ${session}\n`;
-           });
-           resetMessage += `Enter 'select <number or name>' or 'create <new_session_name>'.`;
-       } else {
-           resetMessage += `\nEnter 'create <new_session_name>'.`;
-       }
+       const resetMessage = "Process finished or stopped.\n\nSelect/create session.";
        setMessages(prev => [...prev, { role: 'system', content: resetMessage }]);
-
+       
+       // Display session options after reset
+       displaySessionOptions();
     } catch (fetchError) {
       console.error("Error fetching sessions post-reset:", fetchError);
        setMessages(prev => [...prev, { role: 'system', content: "Process finished. Error fetching sessions. Try 'create <name>'." }]);
     } finally {
         setIsLoading(false);
     }
-  }, [stopPolling]); // Dependency on stopPolling
+  }, [stopPolling, displaySessionOptions]); // Added displaySessionOptions as dependency
 
   // Function to START polling (if not already running)
   const startPolling = useCallback((processId: string) => {
@@ -306,22 +313,17 @@ export default function ShoppingChat() {
         console.log("[Initial Load] Received sessions:", sessions);
         setAvailableSessions(sessions);
 
-        let initialMessageContent = "Welcome to Universal Shopper! Please choose an option:\n";
+        setMessages([{ role: 'system', content: "Welcome to Universal Shopper! Please choose an option:" }]);
+        
+        // Immediately display session selection options in chat style
         if (sessions.length > 0) {
-          initialMessageContent += "Available sessions:\n";
-          sessions.forEach((session, index) => {
-            initialMessageContent += `${index + 1}. ${session}\n`;
-          });
-          initialMessageContent += `\nEnter 'select <number or name>' to use an existing session.\n`;
+          displaySessionOptions();
         }
-        initialMessageContent += `Enter 'create <new_session_name>' to create a new session.`;
-
-        setMessages([{ role: 'system', content: initialMessageContent }]);
       } catch (error) {
         console.error('[Initial Load] Error fetching sessions:', error);
         setMessages([{
           role: 'system',
-          content: "Welcome! Error fetching sessions. Try 'create <name>'."
+          content: "Welcome! Error fetching sessions. Try creating a new session."
         }]);
       } finally {
         console.log("[Initial Load] Fetch finished.");
@@ -334,6 +336,30 @@ export default function ShoppingChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Handle session selection
+  const handleSelectSession = (session: string) => {
+    setMessages(prev => [...prev, { role: 'assistant', content: `Using session '${session}'. Please paste the product URL.` }]);
+    setCurrentSession({ name: session, isExisting: true });
+    setSessionState('url_required');
+  };
+
+  // Handle create new session button click
+  const handleCreateNewClick = () => {
+    setRequiredInputType('create_session');
+    setMessages(prev => [...prev, { role: 'assistant', content: "Please enter a name for your new session:" }]);
+  };
+
+  // Handle create session submission
+  const handleCreateSession = () => {
+    if (newSessionName.trim()) {
+      setMessages(prev => [...prev, { role: 'user', content: newSessionName.trim() }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Creating new session '${newSessionName.trim()}'. Please paste the product URL.` }]);
+      setCurrentSession({ name: newSessionName.trim(), isExisting: false });
+      setSessionState('url_required');
+      setRequiredInputType(null);
+      setNewSessionName('');
+    }
+  };
 
   // --- handleSendMessage ---
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -414,6 +440,11 @@ export default function ShoppingChat() {
                 setRequiredInputData(null);
                 startPolling(processId);
             }
+        }
+        // Handle create session input
+        else if (requiredInputType === 'create_session') {
+            setNewSessionName(userInput);
+            handleCreateSession();
         }
         // --- 2. Handle Session Setup / URL Input (Only if no required input) ---
         else if (sessionState === 'selecting' || sessionState === 'url_required') {
@@ -520,6 +551,8 @@ export default function ShoppingChat() {
             return "Enter Card Number, CVV, MM/YY...";
         case 'bank_otp':
             return "Enter bank OTP...";
+        case 'create_session':
+            return "Enter a name for your session...";
         // case null: continue to check sessionState or activeProcess...
      }
 
@@ -544,99 +577,138 @@ export default function ShoppingChat() {
 
   // --- Render JSX ---
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-slate-900">
       {/* Header */}
-      <header className="bg-white shadow-sm py-4 px-6 sticky top-0 z-10">
-        <h1 className="text-xl font-bold text-gray-800">Universal Shopper</h1>
+      <header className="bg-slate-800 py-3 px-4 sticky top-0 z-10 border-b border-slate-700">
+        <h1 className="text-xl font-bold text-white">Universal Shopper</h1>
         {/* Display Process Info Conditionally */}
         {activeProcess && (
-          <div className="text-xs text-gray-500 mt-1">
-            Process: <span className="font-mono">{activeProcess.process_id}</span> |
-            Session: <span className="font-medium">{currentSession?.name || 'N/A'}</span> |
-            Status: <span className="font-medium">{activeProcess.status}</span> |
-            Stage: <span className="font-mono">{activeProcess.stage}</span>
-            {activeProcess.message && <span className="italic"> ({activeProcess.message})</span>}
+          <div className="text-xs text-slate-400 mt-1">
+            <span className="font-medium text-slate-300">Process:</span> <span className="font-mono">{activeProcess.process_id}</span> | 
+            <span className="font-medium text-slate-300"> Session:</span> <span>{currentSession?.name || 'N/A'}</span> | 
+            <span className="font-medium text-slate-300"> Status:</span> <span>{activeProcess.status}</span> | 
+            <span className="font-medium text-slate-300"> Stage:</span> <span className="font-mono">{activeProcess.stage}</span>
+            {activeProcess.message && <span className="italic text-slate-400"> ({activeProcess.message})</span>}
           </div>
         )}
-         {/* Display Session Info Before Process Starts */}
-         {!activeProcess && currentSession && sessionState === 'url_required' && (
-            <div className="text-xs text-gray-500 mt-1">
-                Session: <span className="font-medium">{currentSession.name}</span> (Waiting for URL)
-            </div>
-         )}
+        {/* Display Session Info Before Process Starts */}
+        {!activeProcess && currentSession && sessionState === 'url_required' && (
+          <div className="text-xs text-slate-400 mt-1">
+            <span className="font-medium text-slate-300">Session:</span> <span>{currentSession.name}</span> (Waiting for URL)
+          </div>
+        )}
       </header>
 
       {/* Chat container */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-900">
         {messages.map((message, index) => (
           <div
             key={index}
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
           >
-            <div
-              className={`max-w-[80%] rounded-lg px-4 py-3 shadow-sm whitespace-pre-wrap transition-all duration-300 ease-in-out animate-fade-in-up ${
-                message.role === "user"
-                  ? "bg-blue-600 text-white"
-                  : message.role === "assistant"
-                    ? "bg-gray-200 text-gray-800"
-                    : "bg-gray-50 text-gray-600 border border-gray-200"
-              }`}
-            >
-              {typeof message.content === 'string' && message.content.startsWith('http') ? (
-                <a 
-                  href={message.content} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-blue-600 hover:underline break-all"
-                >
-                  {message.content}
-                </a>
-              ) : (
-                message.content
-              )}
-            </div>
+            <Card className={`shadow-md max-w-[85%] overflow-hidden border-0 ${
+              message.role === "user" 
+                ? "bg-indigo-600" 
+                : message.role === "system" 
+                  ? "bg-slate-800" 
+                  : "bg-slate-800"
+            }`}>
+              <CardContent className={`p-3 flex ${
+                message.role === "user" ? "text-white" : message.role === "system" ? "text-slate-200" : "text-slate-200"
+              }`}>
+                {message.role !== "user" && (
+                  <Avatar className="h-8 w-8 mr-2 bg-slate-700 flex items-center justify-center text-slate-200 border border-slate-600">
+                    <span className="text-xs font-medium">AI</span>
+                  </Avatar>
+                )}
+                <div className="whitespace-pre-wrap">
+                  {typeof message.content === 'string' && message.content.startsWith('http') ? (
+                    <a 
+                      href={message.content} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-blue-400 hover:underline break-all"
+                    >
+                      {message.content}
+                    </a>
+                  ) : (
+                    message.content
+                  )}
+                  
+                  {/* Session buttons inside chat message */}
+                  {message.content === 'Click on existing session' && (
+                    <div className="mt-3 space-y-2">
+                      {availableSessions.map((session, idx) => (
+                        <Button
+                          key={idx}
+                          onClick={() => handleSelectSession(session)}
+                          variant="outline"
+                          className="w-full justify-center bg-slate-700 border-slate-600 hover:bg-slate-600 text-white cursor-pointer"
+                        >
+                          {session}
+                        </Button>
+                      ))}
+                      
+                      <div className="flex items-center my-3">
+                        <div className="flex-grow h-px bg-slate-700"></div>
+                        <div className="mx-3 text-slate-400 text-sm">OR</div>
+                        <div className="flex-grow h-px bg-slate-700"></div>
+                      </div>
+                      
+                      <Button
+                        onClick={handleCreateNewClick}
+                        className="w-full justify-center bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
+                      >
+                        Create new
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                {message.role === "user" && (
+                  <Avatar className="h-8 w-8 ml-2 bg-indigo-700 flex items-center justify-center text-white border border-indigo-500">
+                    <span className="text-xs font-medium">You</span>
+                  </Avatar>
+                )}
+              </CardContent>
+            </Card>
           </div>
         ))}
-        {/* More subtle loading indicator: shown when isLoading is true AND no input is required */}
+         
+        {/* Loading indicator */}
         {isLoading && requiredInputType === null && (
           <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-lg px-4 py-2 bg-white text-gray-800 border border-gray-200 opacity-75 shadow-sm">
-              <div className="flex space-x-1 items-center text-sm text-gray-500">
-                <span>Processing</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "300ms" }}></div>
-              </div>
-            </div>
+            <Card className="max-w-[85%] bg-slate-800 border-0">
+              <CardContent className="p-2 flex">
+                <div className="flex space-x-1 items-center text-sm text-slate-400">
+                  <span>Processing</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }}></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "300ms" }}></div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
         <div ref={messagesEndRef} /> {/* Element to scroll to */}
       </div>
 
       {/* Input area */}
-      <div className="border-t bg-white p-4 sticky bottom-0">
+      <div className="border-t border-slate-700 bg-slate-800 p-3 sticky bottom-0">
         <form onSubmit={handleSendMessage} className="flex space-x-2">
-          <input
-            type="text"
+          <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={getPlaceholderText()}
-            // Slightly larger input, better focus rings
-            className="flex-1 rounded-full border border-gray-300 px-5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-             // Disable input field ONLY when isLoading is true AND no input is currently required by the backend.
-             // Allows user to type/submit OTP, address etc. even if backend hasn't responded to previous poll yet.
+            className="flex-1 rounded-full bg-slate-700 border-slate-600 text-white placeholder:text-slate-400 focus-visible:ring-indigo-500"
             disabled={isLoading && requiredInputType === null}
           />
-          <button
+          <Button
             type="submit"
-             // Disable button if input is empty OR if (isLoading is true AND no input is required).
-             // Allows submitting required input even while loading indicator is shown briefly.
             disabled={!input.trim() || (isLoading && requiredInputType === null)}
-             // Nicer button styles, clear disabled state
-            className="inline-flex items-center justify-center rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-full bg-indigo-600 hover:bg-indigo-500 text-white"
           >
             Send
-          </button>
+          </Button>
         </form>
       </div>
     </div>
