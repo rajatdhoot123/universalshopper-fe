@@ -18,7 +18,7 @@ interface ApiAddress {
 }
 
 // Define specific types for required input to improve type safety
-type RequiredInputType = 'login_otp' | 'select_address' | 'payment' | 'bank_otp' | 'create_session' | null;
+type RequiredInputType = 'login_otp' | 'select_address' | 'payment' | 'bank_otp' | 'create_session' | 'phone_number' | null;
 
 interface ActionData {
   addresses?: ApiAddress[]; // Use the new address type
@@ -148,7 +148,13 @@ export default function ShoppingChat() {
             // Safely access stage using optional chaining
             const currentStage = updatedProcess.stage;
             switch (currentStage) {
+                case 'LOGIN_REQUIRED':
+                    message = message || 'Please enter your phone number.';
+                    nextRequiredInput = 'phone_number';
+                    shouldStopPolling = true;
+                    break;
                 case 'login_otp_required':
+                case 'OTP_REQUESTED': // Handle new stage similarly
                     message = message || 'Please enter login OTP.';
                     nextRequiredInput = 'login_otp';
                     shouldStopPolling = true;
@@ -372,6 +378,18 @@ export default function ShoppingChat() {
             // --- Submit based on requiredInputType ---
             try {
                  switch (requiredInputType) {
+                     case 'phone_number':
+                         // Simple validation for phone number
+                         const phoneRegex = /^\d{10}$/;  // Basic validation for 10-digit phone
+                         if (phoneRegex.test(userInput.replace(/\D/g, ''))) {
+                             await api.submitPhoneNumber(processId, userInput.replace(/\D/g, ''));
+                             setMessages(prev => [...prev, { role: 'assistant', content: 'Phone number submitted. Checking status...' }]);
+                             submissionSuccessful = true;
+                         } else {
+                             setMessages(prev => [...prev, { role: 'assistant', content: 'Please enter a valid 10-digit phone number.' }]);
+                             setIsLoading(false); // Stop loading on validation error
+                         }
+                         break;
                      case 'login_otp':
                          await api.submitLoginOTP(processId, userInput);
                          setMessages(prev => [...prev, { role: 'assistant', content: 'Login OTP submitted. Checking status...' }]);
@@ -557,6 +575,8 @@ export default function ShoppingChat() {
             return "Enter bank OTP...";
         case 'create_session':
             return "Enter a name for your session...";
+        case 'phone_number':
+            return "Enter your phone number...";
         // case null: continue to check sessionState or activeProcess...
      }
 

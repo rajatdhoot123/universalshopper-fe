@@ -145,4 +145,20 @@ export const submitBankOTP = async (processId: string, otp: string): Promise<voi
     method: 'POST',
     body: JSON.stringify({ process_id: processId, otp }),
   });
-}; 
+};
+
+// Function to submit phone number for login
+export async function submitPhoneNumber(processId: string, phoneNumber: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/process/${processId}/phone_number`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ phone_number: phoneNumber }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to submit phone number: ${errorText}`);
+  }
+} 
