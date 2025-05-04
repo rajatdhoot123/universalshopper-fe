@@ -70,15 +70,15 @@ export default function ShoppingChat() {
       const sessions = await api.listSessions();
       setAvailableSessions(sessions);
       // Add a message prompting for session selection again
-       let resetMessage = "Process finished or stopped.\\n\\nSelect/create session.";
+       let resetMessage = "Process finished or stopped.\n\nSelect/create session.";
        if (sessions.length > 0) {
-           resetMessage += "\\nAvailable sessions:\\n";
+           resetMessage += "\nAvailable sessions:\n";
            sessions.forEach((session, index) => {
-               resetMessage += `${index + 1}. ${session}\\n`;
+               resetMessage += `${index + 1}. ${session}\n`;
            });
            resetMessage += `Enter 'select <number or name>' or 'create <new_session_name>'.`;
        } else {
-           resetMessage += `\\nEnter 'create <new_session_name>'.`;
+           resetMessage += `\nEnter 'create <new_session_name>'.`;
        }
        setMessages(prev => [...prev, { role: 'system', content: resetMessage }]);
 
@@ -306,13 +306,13 @@ export default function ShoppingChat() {
         console.log("[Initial Load] Received sessions:", sessions);
         setAvailableSessions(sessions);
 
-        let initialMessageContent = "Welcome to Universal Shopper! Please choose an option:\\n";
+        let initialMessageContent = "Welcome to Universal Shopper! Please choose an option:\n";
         if (sessions.length > 0) {
-          initialMessageContent += "Available sessions:\\n";
+          initialMessageContent += "Available sessions:\n";
           sessions.forEach((session, index) => {
-            initialMessageContent += `${index + 1}. ${session}\\n`;
+            initialMessageContent += `${index + 1}. ${session}\n`;
           });
-          initialMessageContent += `\\nEnter 'select <number or name>' to use an existing session.\\n`;
+          initialMessageContent += `\nEnter 'select <number or name>' to use an existing session.\n`;
         }
         initialMessageContent += `Enter 'create <new_session_name>' to create a new session.`;
 
@@ -574,12 +574,12 @@ export default function ShoppingChat() {
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 whitespace-pre-wrap transition-all duration-300 ease-in-out animate-fade-in-up ${
+              className={`max-w-[80%] rounded-lg px-4 py-3 shadow-sm whitespace-pre-wrap transition-all duration-300 ease-in-out animate-fade-in-up ${
                 message.role === "user"
-                  ? "bg-blue-500 text-white"
+                  ? "bg-blue-600 text-white"
                   : message.role === "assistant"
-                    ? "bg-gray-200 text-gray-700"
-                    : "bg-white text-gray-800 border border-gray-200 shadow-sm"
+                    ? "bg-gray-200 text-gray-800"
+                    : "bg-gray-50 text-gray-600 border border-gray-200"
               }`}
             >
               {typeof message.content === 'string' && message.content.startsWith('http') ? (
