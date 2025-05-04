@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as api from '../services/api';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -46,10 +45,11 @@ export default function ShoppingChat() {
   const [newSessionName, setNewSessionName] = useState('');
 
   // Use useRef for interval ID and poll count
-  const [intervalIdRef, pollCountRef, messagesEndRef] = [
+  const [intervalIdRef, pollCountRef, messagesEndRef, inputRef] = [
     useRef<NodeJS.Timeout | null>(null),
     useRef(0),
-    useRef<HTMLDivElement>(null)  // For scrolling
+    useRef<HTMLDivElement>(null),  // For scrolling
+    useRef<HTMLInputElement>(null)  // For input focus
   ];
 
   // Function to STOP polling
@@ -537,6 +537,15 @@ export default function ShoppingChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Auto focus input when requiredInputType changes to non-null
+  useEffect(() => {
+    if (requiredInputType !== null && inputRef.current) {
+      // Focus the input field when input is required
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100); // Small delay to ensure UI has updated
+    }
+  }, [requiredInputType]);
 
   // Placeholder text logic based on the new state structure
   const getPlaceholderText = () => {
@@ -606,87 +615,91 @@ export default function ShoppingChat() {
             key={index}
             className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
           >
-            <Card className={`shadow-md max-w-[85%] overflow-hidden border-0 ${
-              message.role === "user" 
-                ? "bg-indigo-600" 
-                : message.role === "system" 
-                  ? "bg-slate-800" 
-                  : "bg-slate-800"
-            }`}>
-              <CardContent className={`p-3 flex ${
-                message.role === "user" ? "text-white" : message.role === "system" ? "text-slate-200" : "text-slate-200"
+            {message.role === "user" && (
+              <div className="max-w-[85%] rounded-2xl bg-indigo-600 p-3 shadow-sm">
+                <div className="flex items-center">
+                  <div className="flex-grow whitespace-pre-wrap text-white font-medium break-words overflow-hidden">
+                    {message.content}
+                  </div>
+                  <div className="ml-4 flex-shrink-0">
+                    <Avatar className="h-8 w-8 bg-indigo-700 flex items-center justify-center text-white border border-indigo-500">
+                      <span className="text-xs font-medium">You</span>
+                    </Avatar>
+                  </div>
+                </div>
+              </div>
+            )}
+            {message.role !== "user" && (
+              <div className={`max-w-[85%] rounded-2xl p-3 shadow-sm ${
+                message.role === "system" ? "bg-slate-800" : "bg-slate-800"
               }`}>
-                {message.role !== "user" && (
-                  <Avatar className="h-8 w-8 mr-2 bg-slate-700 flex items-center justify-center text-slate-200 border border-slate-600">
+                <div className="flex text-slate-200">
+                  <Avatar className="h-8 w-8 mr-3 flex-shrink-0 bg-slate-700 flex items-center justify-center text-slate-200 border border-slate-600">
                     <span className="text-xs font-medium">AI</span>
                   </Avatar>
-                )}
-                <div className="whitespace-pre-wrap">
-                  {typeof message.content === 'string' && message.content.startsWith('http') ? (
-                    <a 
-                      href={message.content} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="text-blue-400 hover:underline break-all"
-                    >
-                      {message.content}
-                    </a>
-                  ) : (
-                    message.content
-                  )}
-                  
-                  {/* Session buttons inside chat message */}
-                  {message.content === 'Click on existing session' && (
-                    <div className="mt-3 space-y-2">
-                      {availableSessions.map((session, idx) => (
-                        <Button
-                          key={idx}
-                          onClick={() => handleSelectSession(session)}
-                          variant="outline"
-                          className="w-full justify-center bg-slate-700 border-slate-600 hover:bg-slate-600 text-white cursor-pointer"
-                        >
-                          {session}
-                        </Button>
-                      ))}
-                      
-                      <div className="flex items-center my-3">
-                        <div className="flex-grow h-px bg-slate-700"></div>
-                        <div className="mx-3 text-slate-400 text-sm">OR</div>
-                        <div className="flex-grow h-px bg-slate-700"></div>
-                      </div>
-                      
-                      <Button
-                        onClick={handleCreateNewClick}
-                        className="w-full justify-center bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
+                  <div className="whitespace-pre-wrap break-words overflow-hidden w-full">
+                    {typeof message.content === 'string' && message.content.startsWith('http') ? (
+                      <a 
+                        href={message.content} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-white font-medium underline hover:text-slate-200 break-all overflow-hidden"
                       >
-                        Create new
-                      </Button>
-                    </div>
-                  )}
+                        {/* Display shortened version of URL */}
+                        {message.content.length > 50 
+                          ? `${message.content.substring(0, 40)}...${message.content.substring(message.content.lastIndexOf("/"))}` 
+                          : message.content}
+                      </a>
+                    ) : (
+                      message.content
+                    )}
+                    
+                    {/* Session buttons inside chat message */}
+                    {message.content === 'Click on existing session' && (
+                      <div className="mt-4 space-y-3">
+                        {availableSessions.map((session, idx) => (
+                          <Button
+                            key={idx}
+                            onClick={() => handleSelectSession(session)}
+                            variant="outline"
+                            className="w-full py-3 justify-center bg-slate-700 border-slate-600 hover:bg-slate-600 text-white rounded-md cursor-pointer"
+                          >
+                            {session}
+                          </Button>
+                        ))}
+                        
+                        <div className="flex items-center my-4">
+                          <div className="flex-grow h-px bg-slate-700"></div>
+                          <div className="mx-4 text-slate-400 text-sm">OR</div>
+                          <div className="flex-grow h-px bg-slate-700"></div>
+                        </div>
+                        
+                        <Button
+                          onClick={handleCreateNewClick}
+                          className="w-full py-3 justify-center bg-indigo-600 hover:bg-indigo-500 text-white rounded-md cursor-pointer  "
+                        >
+                          Create new
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {message.role === "user" && (
-                  <Avatar className="h-8 w-8 ml-2 bg-indigo-700 flex items-center justify-center text-white border border-indigo-500">
-                    <span className="text-xs font-medium">You</span>
-                  </Avatar>
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            )}
           </div>
         ))}
          
         {/* Loading indicator */}
         {isLoading && requiredInputType === null && (
           <div className="flex justify-start">
-            <Card className="max-w-[85%] bg-slate-800 border-0">
-              <CardContent className="p-2 flex">
-                <div className="flex space-x-1 items-center text-sm text-slate-400">
-                  <span>Processing</span>
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }}></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "150ms" }}></div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "300ms" }}></div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="max-w-[85%] bg-slate-800 rounded-2xl p-3 shadow-sm">
+              <div className="flex space-x-1 items-center text-sm text-slate-400">
+                <span>Processing</span>
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "0ms" }}></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "150ms" }}></div>
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: "300ms" }}></div>
+              </div>
+            </div>
           </div>
         )}
         <div ref={messagesEndRef} /> {/* Element to scroll to */}
@@ -696,6 +709,7 @@ export default function ShoppingChat() {
       <div className="border-t border-slate-700 bg-slate-800 p-3 sticky bottom-0">
         <form onSubmit={handleSendMessage} className="flex space-x-2">
           <Input
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={getPlaceholderText()}
